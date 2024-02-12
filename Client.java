@@ -1,15 +1,18 @@
 package server;
 
+import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.net.Socket;
 import java.util.Scanner;
 import java.io.IOException;
+import java.io.InputStreamReader;
 
 
 public class Client {
 	private static Socket socket;
     public static void main(String[] args) throws Exception{
+    	
     	String adress = "";
     	try {
     		Scanner reader = new Scanner(System.in);
@@ -50,19 +53,54 @@ public class Client {
         
         DataInputStream in= new DataInputStream(socket.getInputStream());
         String isAuthenticated = in.readUTF();
-        // String aut = in.readUTF();
-        // String authenticationMessage = in.readUTF();
         
         if (isAuthenticated.equals("connected")) {
-            System.out.println("Connexion à votre compte réussie.");
+            System.out.println("Connexion à votre compte réussie.\n");
+            sendAndReceive(out);
         } else if(isAuthenticated.equals("created")) {
         	System.out.println("Un compte a été automatiquement créé pour vous.");
+        	sendAndReceive(out);
         } else if(isAuthenticated.equals("wrong")) {
         	System.out.println("Erreur dans la saisie du mot de passe.");
-        }
+        } 
         
-        socket.close();
     }
+    
+    private static void sendAndReceive(DataOutputStream out) throws Exception {
+    	BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        Thread thread = new Thread(() -> {
+            try {
+                String inputLine;
+                while ((inputLine = input.readLine()) != null) {
+                    System.out.println(inputLine);
+                }
+            } catch (IOException e) {
+                System.out.println("Connection au serveur perdue.");
+            }
+        });
+        thread.start();
+        Scanner reader = new Scanner(System.in);
+        try {
+            while (true) {
+                String message = reader.nextLine();
+                if ("exit".equalsIgnoreCase(message)) {
+                    break;
+                }
+                if (message.length()< 200) {
+                out.writeUTF(message);
+                }else {
+                	System.out.println("Erreur d'envoi. Votre message dépasse la taille maximale de 200 caractères.");
+                }
+                
+            }
+        } finally {
+            thread.interrupt();
+            reader.close();
+            socket.close();
+        }
+    }
+    
+    
     
     public static String askForUsername() {
     	Scanner reader = new Scanner(System.in);

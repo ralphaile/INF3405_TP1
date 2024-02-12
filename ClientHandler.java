@@ -1,39 +1,110 @@
 package server;
+
 import java.net.Socket;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.io.*;
 import java.util.*;
-import java.util.Scanner;
+
+
 import java.io.FileWriter;
 
-public class ClientHandler extends Thread {
+public class ClientHandler implements Runnable {
 	 private Socket socket;
 	 private int clientNumber;
-	 public ClientHandler(Socket socket,int clientNumber) {
+	 private PrintWriter output;
+     //private BufferedReader input;
+     private List<ClientHandler> clients;
+     private String receivedUsername;
+     private List<String> messageHistory; 
+     private static final int MESSAGE_HISTORY_SIZE = 15;
+     
+     
+	 public ClientHandler(Socket socket,int clientNumber, List<ClientHandler> clients, List<String> messageHistory ) throws IOException{
 		 this.socket=socket;
 	     this.clientNumber=clientNumber;
+	     this.output = new PrintWriter(socket.getOutputStream(), true);
+         //this.input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+         this.clients = clients;
+         this.messageHistory = messageHistory;
 	     System.out.println("New connection with client#" + clientNumber + " at " + socket);
 	    }
+	 @Override
 	 public void run() {
 	        try {
 	        	DataInputStream in = new DataInputStream(socket.getInputStream());
 	            // out.writeUTF("Hello from server - you are client#" + clientNumber);
 	            
 	            String receivedUsername = in.readUTF();
+	            this.receivedUsername = receivedUsername;
 	            String receivedPassword = in.readUTF();
 	            String isAuthenticated = checkUserPassword(receivedUsername, receivedPassword);
 	            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
 	            out.writeUTF(isAuthenticated);
+	            sendMessageHistory();
+	            sendOutMessage("SERVER: " + receivedUsername + " a rejoint la salle de clavardage!", "SERVER", this);
+	            String message;
 	            
+                while ((message = in.readUTF()) != null && !message.equalsIgnoreCase("exit")) {
+                	sendOutMessage(message, receivedUsername, this);
+                }
 	        }catch(IOException e) {
-	            System.out.println("Error Handling Client#" + clientNumber + ": " + e);
+	            //System.out.println("Error Handling Client#" + clientNumber + ": " + e);
 	        }finally {
 	            try {
+	            	sendOutMessage(String.format("SERVER: %s a quitté la salle de clavardage.", receivedUsername),"SERVER", this);
+	            	clients.remove(this);
 	                socket.close();
 	            }catch(IOException e) {
 	                System.out.println("Couldn't close a socket, what's going on?");
 	            }
 	        }
 	        System.out.println("Connection with client#" + clientNumber + " closed");
+	    }
+	 private void sendMessageHistory() {
+	        for (String message : messageHistory) {
+	            this.output.println(message);
+	        }
+	    }
+	 private void sendOutMessage(String message, String receivedUsername, ClientHandler clientHandler) {
+		 String date = new SimpleDateFormat("yyyy-MM-dd@HH:mm:ss").format(new Date());
+         String formattedMessage = String.format("[%s - %s:%d - %s]: %s",
+                 receivedUsername,
+                 socket.getInetAddress().getHostAddress(),
+                 socket.getPort(),
+                 date,
+                 message);
+
+         archiveMessage(formattedMessage);
+         addToMessageHistory(formattedMessage);
+         
+         synchronized (clients) {
+             for (ClientHandler client : clients) {
+                 if (client != clientHandler) {
+                     client.output.println(formattedMessage);
+                 }
+             }
+         }
+         System.out.println(formattedMessage);
+     }
+	 
+	 private synchronized void addToMessageHistory(String message) {
+	        if (messageHistory.size() >= MESSAGE_HISTORY_SIZE) {
+	            messageHistory.remove(0);
+	        }
+	        messageHistory.add(message);
+	    }
+	 
+	 private static void archiveMessage(String formattedMessage) {
+	        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
+	        String filename = LocalDateTime.now().format(formatter) + ".txt";
+
+	        try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(filename, true)))) {
+	            out.println(formattedMessage); 
+	        } catch (IOException e) {
+	            System.out.println("Impossible d'écrire dans le fichier: " + e.getMessage());
+	        }
 	    }
 	 
 	 public String checkUserPassword(String username, String password) {

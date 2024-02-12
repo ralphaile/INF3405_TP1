@@ -1,13 +1,20 @@
 package server;
 
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class Server {
 	
 	private static ServerSocket Listener;
+    private static List<ClientHandler> clients = new ArrayList<>();
+    private static List<String> messageHistory = new ArrayList<>();
+    
     public static void main(String[] args)throws Exception{
         int clientNumber=0;
         String serverAddress = askForIPAddress();
@@ -20,17 +27,25 @@ public class Server {
         System.out.format("The server is running on %s:%d%n", serverAddress, serverPort);
         try {
             while(true) {
-                new ClientHandler(Listener.accept(),clientNumber++).start();
+                Socket client = Listener.accept();
+                ClientHandler clientHandler = new ClientHandler(client, clientNumber++, clients, messageHistory);
+                clients.add(clientHandler);
+                Thread thread = new Thread(clientHandler);
+                thread.start();
             }
-        }finally {
+        }catch (Exception e) {
+            System.out.println("Erreur démarrage du serveur: " + e.getMessage());
+        } finally {
             Listener.close();
         }
     }
+
     
     public static String askForIPAddress() {
     	Scanner reader = new Scanner(System.in);
     	System.out.println("Entrez une adresse IP valide sur laquelle s'exécutera le serveur: ");
     	String adress = reader.nextLine();
+    	
         Scanner newReader = new Scanner(System.in);
         while(!isValidIPAddress(adress)) {
         	System.out.println("L'adresse IP entrée est invalide, veuillez entrez une adresse valide: ");
@@ -62,3 +77,4 @@ public class Server {
     	}
     }
 }
+ 
