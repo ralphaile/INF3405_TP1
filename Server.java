@@ -14,17 +14,22 @@ public class Server {
 	private static ServerSocket Listener;
     private static List<ClientHandler> clients = new ArrayList<>();
     private static List<String> messageHistory = new ArrayList<>();
-    
-    public static void main(String[] args)throws Exception{
+
+    public static void main(String[] args)throws Exception {
         int clientNumber=0;
-        String serverAddress = askForIPAddress();
-        int serverPort = askForPort();
+        
+        Scanner addressScanner = new Scanner(System.in);
+        Scanner portScanner = new Scanner(System.in);
+        
+        String serverAddress = askForIPAddress(addressScanner);
+        int serverPort = askForPort(portScanner);
         
         Listener = new ServerSocket();
         Listener.setReuseAddress(true);
         InetAddress serverIP = InetAddress.getByName(serverAddress);
         Listener.bind(new InetSocketAddress(serverIP, serverPort));
         System.out.format("The server is running on %s:%d%n", serverAddress, serverPort);
+        
         try {
             while(true) {
                 Socket client = Listener.accept();
@@ -33,37 +38,40 @@ public class Server {
                 Thread thread = new Thread(clientHandler);
                 thread.start();
             }
-        }catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Erreur démarrage du serveur: " + e.getMessage());
         } finally {
             Listener.close();
+            addressScanner.close();
+            portScanner.close();
         }
     }
 
-    
-    public static String askForIPAddress() {
-    	Scanner reader = new Scanner(System.in);
-    	System.out.println("Entrez une adresse IP valide sur laquelle s'exécutera le serveur: ");
-    	String adress = reader.nextLine();
-    	
-        Scanner newReader = new Scanner(System.in);
-        while(!isValidIPAddress(adress)) {
-        	System.out.println("L'adresse IP entrée est invalide, veuillez entrez une adresse valide: ");
-        	adress = newReader.nextLine();
+    public static String askForIPAddress(Scanner addressScanner) {
+        System.out.println("Entrez une adresse IP valide sur laquelle s'exécutera le serveur: ");
+        String address = addressScanner.nextLine();
+        
+        while (!isValidIPAddress(address)) {
+            System.out.println("L'adresse IP entrée est invalide, veuillez entrez une adresse valide: ");
+            address = addressScanner.nextLine();
         }
-        return adress;
+        return address;
     }
-    
-    public static int askForPort() {
-    	Scanner portReader = new Scanner(System.in);
+
+    public static int askForPort(Scanner portScanner) {
         System.out.println("Entrez un port entre 5000 et 5050: ");
-        int port = portReader.nextInt();
-        Scanner newPortReader = new Scanner(System.in);
+        while (!portScanner.hasNextInt()) {
+            System.out.println("Veuillez enter un format de port valide:");
+            portScanner.next();
+        }
+        
+        int port = portScanner.nextInt();
         int minValidPort = 5000;
         int maxValidPort = 5050;
-        while(port < minValidPort || port > maxValidPort) {
-        	System.out.println("Le port entré n'est pas entre 5000 et 5050, veuillez entrez un autre port: ");
-        	port = portReader.nextInt();
+        
+        while (port < minValidPort || port > maxValidPort) {
+            System.out.println("Le port entré n'est pas entre 5000 et 5050, veuillez entrez un autre port: ");
+            port = portScanner.nextInt();
         }
         return port;
     }
